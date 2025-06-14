@@ -1,0 +1,14 @@
+{
+  "appId": "com.meetingassistant.app",
+  "productName": "Meeting Assistant",
+  "files": ["dist/**", "dist-electron/**", "package.json"],
+  "directories": {
+    "output": "release"
+  },
+  "mac": {
+    "target": "dmg"
+  },
+  "win": {
+    "target": "nsis"
+  }
+}
