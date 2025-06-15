@@ -10,4 +10,5 @@ electron_1.contextBridge.exposeInMainWorld("electronAPI", {
     startSystemAudio: () => electron_1.ipcRenderer.invoke("start-system-audio"),
     stopSystemAudio: () => electron_1.ipcRenderer.invoke("stop-system-audio"),
     onSystemAudioChunk: (callback) => electron_1.ipcRenderer.on("system-audio-chunk", (_event, chunk) => callback(chunk)),
+    onSystemAudioFinished: (callback) => electron_1.ipcRenderer.on("system-audio-finished", (event, buffer) => callback(buffer)),
 });

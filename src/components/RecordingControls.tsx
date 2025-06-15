@@ -8,6 +8,7 @@ declare global {
       openSystemPreferences?: () => void;
       startSystemAudio?: () => void;
       stopSystemAudio?: () => void;
+      onSystemAudioFinished?: (callback: (buffer: Buffer) => void) => void;
       onSystemAudioChunk?: (callback: (chunk: Buffer) => void) => void;
     };
   }
@@ -16,6 +17,7 @@ declare global {
 import { useEffect, useRef, useState } from "react";
 import { Play, Square } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import { Buffer } from "buffer"; // Ensure Buffer is available in renderer process
 import axios from "axios";
 
 export function RecordingControls() {
@@ -233,7 +235,14 @@ export function RecordingControls() {
       }
     }
   };
-
+  function toArrayBuffer(
+    buffer: ArrayBuffer | SharedArrayBuffer,
+    offset: number,
+    length: number
+  ): ArrayBuffer {
+    const view = new Uint8Array(buffer, offset, length);
+    return view.slice().buffer;
+  }
   // Helper to send PCM buffer to backend for transcription
   async function sendPcmToBackend(pcmBuffer: Buffer) {
     try {
@@ -242,6 +251,9 @@ export function RecordingControls() {
         alert("EMpty PCM buffer received. Please check your audio source.");
         return;
       } else {
+        const arrayBuffer = Uint8Array.from(pcmBuffer).buffer;
+        const transcript = await window.electronAPI.sendAudio(arrayBuffer);
+
         alert("PCM buffer received. Sending to backend for transcription.");
       }
       console.log(
@@ -263,7 +275,7 @@ export function RecordingControls() {
       // dispatch({
       //   type: "ADD_TRANSCRIPTION",
       //   payload: {
-      //     id: `${Date.now()}`,
+      //     id: ${Date.now()},
       //     text: res.data.text,
       //     timestamp: new Date(),
       //   },
@@ -286,28 +298,28 @@ export function RecordingControls() {
       return;
     }
     // Start system audio recording
-    window.electronAPI.startSystemAudio();
-
-    // Handler for incoming PCM chunks
-    const handleSystemAudioChunk = (chunk: Buffer) => {
-      // Buffer the PCM data
-      systemAudioChunks.current.push(chunk);
-      // Optionally, send each chunk in real-time:
-      // sendPcmToBackend(chunk);
+    const handleSystemAudioFinished = async (buffer: Buffer) => {
+      const arrayBuffer = buffer.buffer.slice(
+        buffer.byteOffset,
+        buffer.byteOffset + buffer.byteLength
+      );
+      const transcript = await window.electronAPI.sendAudio(arrayBuffer);
+      dispatch({
+        type: "ADD_TRANSCRIPTION",
+        payload: {
+          id: `${Date.now()}`,
+          text: transcript,
+          timestamp: new Date(),
+        },
+      });
     };
 
-    window.electronAPI.onSystemAudioChunk(handleSystemAudioChunk);
+    window.electronAPI.onSystemAudioFinished?.(handleSystemAudioFinished);
 
     return () => {
       // Stop system audio recording
       window.electronAPI.stopSystemAudio &&
         window.electronAPI.stopSystemAudio();
-      // On stop, send the full buffer to backend
-      if (systemAudioChunks.current.length > 0) {
-        const fullBuffer = Buffer.concat(systemAudioChunks.current);
-        sendPcmToBackend(fullBuffer);
-        systemAudioChunks.current = [];
-      }
     };
   }, [state.isRecording]);
 
