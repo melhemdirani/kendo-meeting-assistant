@@ -9,4 +9,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getDesktopSources: (options?: any) =>
     ipcRenderer.invoke("get-desktop-sources", options),
   openSystemPreferences: () => ipcRenderer.invoke("open-system-preferences"),
+  startSystemAudio: () => ipcRenderer.invoke("start-system-audio"),
+  stopSystemAudio: () => ipcRenderer.invoke("stop-system-audio"),
+  onSystemAudioChunk: (callback: (chunk: Buffer) => void) =>
+    ipcRenderer.on("system-audio-chunk", (_event, chunk) => callback(chunk)),
 });

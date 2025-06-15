@@ -6,6 +6,9 @@ declare global {
       logToMain?: (msg: string) => void;
       getDesktopSources?: (options?: any) => Promise<any[]>;
       openSystemPreferences?: () => void;
+      startSystemAudio?: () => void;
+      stopSystemAudio?: () => void;
+      onSystemAudioChunk?: (callback: (chunk: Buffer) => void) => void;
     };
   }
 }
@@ -13,6 +16,7 @@ declare global {
 import { useEffect, useRef, useState } from "react";
 import { Play, Square } from "lucide-react";
 import { useApp } from "../context/AppContext";
+import axios from "axios";
 
 export function RecordingControls() {
   const { state, dispatch } = useApp();
@@ -20,6 +24,7 @@ export function RecordingControls() {
   const audioChunksRef = useRef<Blob[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  const systemAudioChunks = useRef<Buffer[]>([]);
 
   // Helper: Detect silence in audio
   function setupSilenceDetection(
@@ -100,24 +105,24 @@ export function RecordingControls() {
   }, [mediaStream]);
 
   // Helper to request screen recording permission and guide user
-  async function requestScreenPermission() {
-    try {
-      await window.electronAPI.getDesktopSources?.();
-      // Permission granted or already allowed
-      return true;
-    } catch (err) {
-      alert(
-        "Screen recording permission is required. Please enable it in System Settings > Privacy & Security > Screen Recording, then restart the app."
-      );
-      window.electronAPI.openSystemPreferences?.();
-      return false;
-    }
-  }
+  // async function requestScreenPermission() {
+  //   try {
+  //     await window.electronAPI.getDesktopSources?.();
+  //     // Permission granted or already allowed
+  //     return true;
+  //   } catch (err) {
+  //     alert(
+  //       "Screen recording permission is required. Please enable it in System Settings > Privacy & Security > Screen Recording, then restart the app."
+  //     );
+  //     window.electronAPI.openSystemPreferences?.();
+  //     return false;
+  //   }
+  // }
 
   const handleToggleRecording = async () => {
     // If you want to record system audio or screen, check permission first
-    const screenOk = await requestScreenPermission();
-    if (!screenOk) return;
+    // const screenOk = await requestScreenPermission();
+    // if (!screenOk) return;
 
     if (state.isRecording) {
       // Stop recording
@@ -228,6 +233,83 @@ export function RecordingControls() {
       }
     }
   };
+
+  // Helper to send PCM buffer to backend for transcription
+  async function sendPcmToBackend(pcmBuffer: Buffer) {
+    try {
+      if (pcmBuffer.byteLength === 0) {
+        console.warn("[Renderer] Empty PCM buffer, skipping send");
+        alert("EMpty PCM buffer received. Please check your audio source.");
+        return;
+      } else {
+        alert("PCM buffer received. Sending to backend for transcription.");
+      }
+      console.log(
+        "[Renderer] Sending PCM buffer to backend for transcription",
+        pcmBuffer.byteLength
+      );
+      // Example: send as binary to your backend endpoint
+      // const res = await axios.post(
+      //   "http://localhost:3000/api/transcribe-pcm",
+      //   pcmBuffer,
+      //   {
+      //     headers: {
+      //       "Content-Type": "application/octet-stream",
+      //     },
+      //     responseType: "json",
+      //   }
+      // );
+      // // Handle response (transcript)
+      // dispatch({
+      //   type: "ADD_TRANSCRIPTION",
+      //   payload: {
+      //     id: `${Date.now()}`,
+      //     text: res.data.text,
+      //     timestamp: new Date(),
+      //   },
+      // });
+    } catch (err) {
+      logToMain("[Renderer] Error sending PCM to backend: " + err);
+    }
+  }
+
+  useEffect(() => {
+    if (!state.isRecording) return;
+
+    if (
+      !window.electronAPI ||
+      !window.electronAPI.startSystemAudio ||
+      !window.electronAPI.onSystemAudioChunk ||
+      !window.electronAPI.stopSystemAudio
+    ) {
+      console.error("Electron API not available for system audio recording");
+      return;
+    }
+    // Start system audio recording
+    window.electronAPI.startSystemAudio();
+
+    // Handler for incoming PCM chunks
+    const handleSystemAudioChunk = (chunk: Buffer) => {
+      // Buffer the PCM data
+      systemAudioChunks.current.push(chunk);
+      // Optionally, send each chunk in real-time:
+      // sendPcmToBackend(chunk);
+    };
+
+    window.electronAPI.onSystemAudioChunk(handleSystemAudioChunk);
+
+    return () => {
+      // Stop system audio recording
+      window.electronAPI.stopSystemAudio &&
+        window.electronAPI.stopSystemAudio();
+      // On stop, send the full buffer to backend
+      if (systemAudioChunks.current.length > 0) {
+        const fullBuffer = Buffer.concat(systemAudioChunks.current);
+        sendPcmToBackend(fullBuffer);
+        systemAudioChunks.current = [];
+      }
+    };
+  }, [state.isRecording]);
 
   return (
     <div className="flex justify-center">

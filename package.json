@@ -13,6 +13,7 @@
     "build": "npm run preload:build && tsc --project tsconfig.electron.json && vite build && electron-builder"
   },
   "dependencies": {
+    "audify": "^1.9.0",
     "axios": "^1.9.0",
     "electron-log": "^5.4.1",
     "lucide-react": "^0.344.0",
