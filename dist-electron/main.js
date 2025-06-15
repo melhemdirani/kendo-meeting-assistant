@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname } from "path";
 // import dotenv from "dotenv";
 import log from "electron-log";
+import { registerSystemAudioHandlers } from "./controllers/systemAudio.controller.js";
 // Load .env variables (OPENAI_API_KEY, etc.)
 // dotenv.config();
 // Import your IPC handler controller
@@ -48,8 +49,6 @@ function createWindow() {
         log.info("Main window created and loaded file: dist/index.html");
     }
 }
-// Register all IPC handlers
-registerTranscriptionHandlers();
 log.info("IPC handlers registered");
 // Listen for renderer logs and print to main process log
 ipcMain.on("renderer-log", (_event, msg) => {
@@ -77,6 +76,12 @@ ipcMain.handle("open-system-preferences", async () => {
 });
 app.whenReady().then(() => {
     log.info("App is ready, creating window");
+    // Register all IPC handlers
+    console.log("Registering IPC handlers");
+    registerTranscriptionHandlers();
+    console.log("IPC handlers registered");
+    registerSystemAudioHandlers();
+    console.log("System audio handlers registered");
     createWindow();
 });
 app.on("window-all-closed", () => {

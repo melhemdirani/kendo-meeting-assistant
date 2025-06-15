@@ -4,18 +4,6 @@ const Audify = require("audify");
 
 let audio: any = null;
 
-ipcMain.handle("start-system-audio", (event) => {
-  if (audio) return; // Already running
-  audio = Audify();
-  audio.on("data", (chunk: Buffer) => {
-    event.sender.send("system-audio-chunk", chunk);
-  });
-  audio.start();
-});
+// Remove system audio IPC handlers from here; now handled in systemAudio.controller.ts
 
-ipcMain.handle("stop-system-audio", () => {
-  if (audio) {
-    audio.stop();
-    audio = null;
-  }
-});
+export {};
